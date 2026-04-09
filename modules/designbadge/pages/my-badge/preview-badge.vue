@@ -6,10 +6,14 @@
       <div class="w-full flex justify-center">
         <button
           @click="downloadPDF"
-          class="flex gap-1 border border-slate-200 px-5 py-2 text-sm bg-blue-200 text-blue-500 rounded-lg font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
+          :disabled="isDownloading"
+          class="flex gap-1 border border-slate-200 px-5 py-2 text-sm bg-blue-200 text-blue-500 rounded-lg font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Icon name="tdesign:file-pdf" class="text-xl" />
-          <span>Download</span>
+          <Icon
+            :name="isDownloading ? 'line-md:loading-twotone-loop' : 'tdesign:file-pdf'"
+            class="text-xl"
+          />
+          <span>{{ isDownloading ? "Downloading..." : "Download" }}</span>
         </button>
       </div>
       <!-- Design Pages -->
@@ -76,6 +80,7 @@ const frontPageRef = ref(null);
 const frontRef = ref(null);
 const backPageRef = ref(null);
 const backRef = ref(null);
+const isDownloading = ref(false);
 
 const { $html2canvas, $jsPDF } = useNuxtApp();
 
@@ -140,17 +145,24 @@ const getContentDimensions = (boxes) => {
 
 // Download the design as PDF
 const downloadPDF = async () => {
+  if (isDownloading.value) return;
+  isDownloading.value = true;
+
   try {
     if (!$html2canvas || !$jsPDF) {
       throw new Error("PDF utilities not available.");
     }
 
+    // Preload all images at once for better speed
+    const allBoxes = [...store.frontBoxes, ...store.backBoxes];
+    await preloadImages(allBoxes);
+
     const frontDimensions = getContentDimensions(store.frontBoxes);
-    const backDimensions =
-      store.backBoxes.length > 0
-        ? getContentDimensions(store.backBoxes)
-        : { width: 0, height: 0 };
     const hasBackSide = store.backBoxes.length > 0;
+    const backDimensions = hasBackSide
+      ? getContentDimensions(store.backBoxes)
+      : { width: 0, height: 0 };
+
     const pdfWidth = Math.max(
       pageStore.presetWidth || 85.6,
       frontDimensions.width,
@@ -173,7 +185,6 @@ const downloadPDF = async () => {
       const originalTransform = element.style.transform;
       element.style.transform = "scale(1)";
       const boxes = side === "front" ? store.frontBoxes : store.backBoxes;
-      await preloadImages(boxes);
       element.style.display = "block";
       element.style.visibility = "visible";
 
@@ -181,6 +192,8 @@ const downloadPDF = async () => {
       const canvas = await $html2canvas(element, {
         scale: 3,
         backgroundColor: "#ffffff",
+        useCORS: true,
+        allowTaint: true,
         width: dimensions.width * 3.78,
         height: dimensions.height * 3.78,
         onclone: async (clonedDoc) => {
@@ -191,10 +204,9 @@ const downloadPDF = async () => {
             const box = boxes.find(
               (b) =>
                 b.id === parseInt(el.getAttribute("data-id")) ||
-                b.text === el.innerText
+                b.innerText === el.innerText
             );
             if (box && box.properties) {
-              // Match the exact calculation from PreviewCanvas.vue's textStyles
               const calculatedSize = Math.max(
                 12,
                 Math.min(
@@ -221,7 +233,6 @@ const downloadPDF = async () => {
             }
           });
 
-          // Proxy images in the cloned document
           const images = clonedDoc.querySelectorAll("img");
           for (const img of images) {
             if (img.src) {
@@ -255,61 +266,35 @@ const downloadPDF = async () => {
       return canvas;
     };
 
-    // Capture front side
-    let frontCanvas = null;
-    if (frontRef.value) {
-      await nextTick();
-      frontCanvas = await captureElement(frontRef.value, "front");
+    // Parallel capture for better speed
+    await nextTick();
+    const capturePromises = [captureElement(frontRef.value, "front")];
+    if (hasBackSide && backRef.value) {
+      capturePromises.push(captureElement(backRef.value, "back"));
     }
 
-    // Capture back side
-    let backCanvas = null;
-    if (hasBackSide && backRef.value) {
-      await nextTick();
-      backCanvas = await captureElement(backRef.value, "back");
-    }
+    const [frontCanvas, backCanvas] = await Promise.all(capturePromises);
 
     // Add front side to PDF
     if (frontCanvas) {
       const imgData = frontCanvas.toDataURL("image/png");
-      pdf.addImage(
-        imgData,
-        "PNG",
-        0,
-        0,
-        frontDimensions.width,
-        frontDimensions.height,
-        undefined,
-        "MEDIUM"
-      );
+      pdf.addImage(imgData, "PNG", 0, 0, frontDimensions.width, frontDimensions.height, undefined, "MEDIUM");
     }
 
     // Add back side to PDF
     if (backCanvas) {
       const imgData = backCanvas.toDataURL("image/png");
-      pdf.addImage(
-        imgData,
-        "PNG",
-        0,
-        frontDimensions.height + 10,
-        backDimensions.width,
-        backDimensions.height,
-        undefined,
-        "MEDIUM"
-      );
+      pdf.addImage(imgData, "PNG", 0, frontDimensions.height + 10, backDimensions.width, backDimensions.height, undefined, "MEDIUM");
     }
 
-    const fullName = store.frontBoxes.find(
-      (box) => box.key === "full_name"
-    )?.text;
-    const badgeName =
-      fullName && fullName.trim() !== ""
-        ? fullName.toLowerCase().replace(/\s+/g, "_")
-        : `${Date.now()}`;
+    const fullName = store.frontBoxes.find((box) => box.key === "full_name")?.text;
+    const badgeName = fullName && fullName.trim() !== "" ? fullName.toLowerCase().replace(/\s+/g, "_") : `${Date.now()}`;
     pdf.save(`${badgeName}-my-badges.pdf`);
   } catch (error) {
     console.error("Error generating PDF:", error);
     alert("Failed to generate PDF. Please try again.");
+  } finally {
+    isDownloading.value = false;
   }
 };
 </script>
