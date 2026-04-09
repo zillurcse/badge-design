@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col min-h-screen">
-    <Navbar />
+    <!-- <Navbar /> -->
 
     <!-- Full width content without max-w and centered padding -->
     <main class="flex-1 w-full">

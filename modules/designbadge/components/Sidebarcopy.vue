@@ -829,7 +829,7 @@ const designGroups = [
     label: "Punching Area Reference",
     icon: "mdi:gesture-tap",
     items: [
-      { type: "punching_area", label: "None", icon: "mdi:close" },
+      { type: "punching_area", label: "No Punching", icon: "mdi:close" },
       { type: "punching_area", label: "Top", icon: "mdi:arrow-up" },
       { type: "punching_area", label: "Bottom", icon: "mdi:arrow-down" },
     ],

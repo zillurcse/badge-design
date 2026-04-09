@@ -13,7 +13,7 @@
     >
       <!-- Canvas Background -->
       <!-- Punch Area Indicators -->
-      <div class="punch-area">
+      <div v-if="store.punchArea" class="punch-area">
         <div class="punch-long">
           <!-- {{ store.punchLong }} -->
           <div

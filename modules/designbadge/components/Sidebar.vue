@@ -73,6 +73,19 @@
           v-if="sidebarInfo.data.openGroups[group.type]"
           class="pl-6 space-y-2 py-2"
         >
+          <!-- No Punching Option (Hardcoded to ensure it always appears) -->
+          <div
+            v-if="group.type === 'punching_area'"
+            class="flex items-center p-2 bg-white rounded hover:bg-slate-100 max-w-sm cursor-pointer"
+            @click="setPunchingArea('none')"
+          >
+            <button
+              class="w-full border rounded-md py-1 px-5 border-gray-300 flex items-center justify-center font-bold text-gray-600 hover:bg-gray-50"
+              :class="selectedPunchArea('none')"
+            >
+              No Punching
+            </button>
+          </div>
           <div
             v-for="item in group.items"
             :key="item.type"
@@ -185,7 +198,8 @@
               <span class="leading-none">{{ item.label }}</span>
             </div>
 
-            <!-- None -->
+
+            <!-- Background None -->
             <div
               class="flex items-center"
               v-else-if="item.type === 'none'"
@@ -425,21 +439,28 @@ function setPunchingArea(area) {
 }
 
 const selectedPunchArea = (area) => {
+  if (area === "none") {
+    return !store.punchArea ? "border border-blue-500 bg-blue-50" : "";
+  }
   switch (area) {
     case "circle-center":
-      return store.punchCircle === "circle-center"
-        ? "border border-blue-300"
+      return store.punchCircle === "circle-center" && store.punchArea
+        ? "border border-blue-500 bg-blue-50"
         : "";
     case "circle-left-right":
-      return store.punchCircle === "circle-left-right"
-        ? "border border-blue-300"
+      return store.punchCircle === "circle-left-right" && store.punchArea
+        ? "border border-blue-500 bg-blue-50"
         : "";
     case "long-center":
-      return store.punchLong === "long-center" ? "border border-blue-300" : "";
-    case "long-left-right":
-      return store.punchLong === "long-left-right"
-        ? "border border-blue-300"
+      return store.punchLong === "long-center" && store.punchArea
+        ? "border border-blue-500 bg-blue-50"
         : "";
+    case "long-left-right":
+      return store.punchLong === "long-left-right" && store.punchArea
+        ? "border border-blue-500 bg-blue-50"
+        : "";
+    default:
+      return "";
   }
 };
 </script>

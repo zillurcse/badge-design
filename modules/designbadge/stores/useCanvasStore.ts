@@ -770,11 +770,11 @@ export const useCanvasStore = defineStore("canvasStore", {
 
     setPunchArea(area: string, side: string) {
       console.log("Setting punch area:", area, "for side:", side);
-      if (side === "front") {
-        this.punchArea = true;
-        this.punchCircle = area;
-        this.punchLong = area;
-      } else if (side === "back") {
+      if (area === "none") {
+        this.punchArea = false;
+        this.punchCircle = "";
+        this.punchLong = "";
+      } else {
         this.punchArea = true;
         this.punchCircle = area;
         this.punchLong = area;
