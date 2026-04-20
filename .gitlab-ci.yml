@@ -1,0 +1,58 @@
+image: node:24
+
+stages:
+  - build
+  - deploy
+
+build_app:
+  stage: build
+  script:
+    - npm install
+    - npm run build
+  variables:
+    NODE_OPTIONS: "--max-old-space-size=4096"
+  artifacts:
+    paths:
+      - .output/
+      - ecosystem.config.cjs
+
+deploy_app:
+  stage: deploy
+  before_script:
+    # 1. Update and install SSH client and Tar (for compression)
+    - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client tar -y )'
+    
+    # 2. Start SSH agent and add the private key
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    
+    # 3. Secure .ssh directory and scan host
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -p 33240 -H "$SSH_HOST" >> ~/.ssh/known_hosts
+    
+  script:
+    - export TARGET_DIR="/home/expouse/public_html/badge.expouse.com"
+    # تعريف المسار المباشر للـ PM2 اللي إنت استخرجته من السيرفر
+    - export PM2_PATH="/home/expouse/.nvm/versions/node/v24.13.1/bin/pm2"
+    
+    # STEP 1: Compress the .output folder
+    - tar -czf release.tar.gz .output/
+    
+    # STEP 2: Create target directory
+    - ssh -p 33240 $SSH_USER@$SSH_HOST "mkdir -p $TARGET_DIR"
+    
+    # STEP 3: Upload files
+    - scp -P 33240 release.tar.gz ecosystem.config.cjs .htaccess $SSH_USER@$SSH_HOST:$TARGET_DIR/
+
+    # STEP 4: Decompress and Restart PM2 using the Full Path
+    - |
+      ssh -p 33240 $SSH_USER@$SSH_HOST "
+        cd $TARGET_DIR && 
+        tar -xzf release.tar.gz && 
+        rm release.tar.gz && 
+        ($PM2_PATH reload ecosystem.config.cjs || $PM2_PATH start ecosystem.config.cjs)
+      "
+    
+  only:
+    - main
